@@ -130,8 +130,21 @@ bool inBarLayout(const App& app, const char* m) {
         if (std::find(l->begin(), l->end(), m) != l->end()) return true;
     return false;
 }
-bool isDivider(const std::string& m) { return m == "divider"; }
-bool repeatable(const std::string& m) { return m == "divider" || m == "visualizer"; }
+bool isDivider(const std::string& m) { return bardivider::isDivider(m); }
+bool repeatable(const std::string& m) { return isDivider(m) || m == "visualizer"; }
+
+bardivider::Options dividerOptions(const Config& cfg, const std::string& entry) {
+    return bardivider::parse(entry).value_or(bardivider::Options{
+        bardivider::parseStyle(cfg.dividerStyle).value_or(bardivider::Style::Line), cfg.dividerSpacing});
+}
+
+int dividerGap(const Config& cfg, const std::string& a, const std::string& b, int fallback) {
+    // Two legacy dividers shared one gap. Explicit margins belong to each divider.
+    if (a == "divider" && b == "divider") return cfg.dividerSpacing;
+    const bool first = isDivider(a), second = isDivider(b);
+    if (!first && !second) return fallback;
+    return (first ? dividerOptions(cfg, a).margin : 0) + (second ? dividerOptions(cfg, b).margin : 0);
+}
 std::vector<int> aiShown(const App& app) {
     std::vector<int> v;
     if (app.cfg.aiClaude && app.barAi[0].seen) v.push_back(0);
@@ -278,7 +291,7 @@ double moduleWidth(const App& app, const std::string& m) {
     if (m == "updates") return updatesShown(app) ? updatesBarW(app) : 0;
     if (m == "activewindow") return awinBarW(app);
     if (m == "keyboard") return app.kbd.list.empty() ? 0 : kbdBarW(app);
-    if (isDivider(m)) return app.cfg.dividerStyle == "dot" ? 6 : 2;
+    if (isDivider(m)) return bardivider::extent(dividerOptions(app.cfg, m).style);
     if (m == "visualizer") return kVizBars * (kVizDot + kVizGap) + (!sideBar(app) && widgetStyle(app, "visualizer") == "m3" ? 2 * kVizM3Pad : 0);
     if (m == "battery") return app.batPresent || lowPeripheral(app) ? batteryW(app) : 0;
     return 0;
@@ -298,7 +311,7 @@ double cellInsetL(const App& app, const std::string& m) { return m == "network" 
 
 // The gap between two widgets keeps the visible space between their shapes: a cell reaches kGroupPad beyond the widget on each side.
 double moduleGap(const App& app, const std::string& a, const std::string& b) {
-    const double base = isDivider(a) || isDivider(b) ? app.cfg.dividerSpacing : app.cfg.barSpacing;
+    const double base = dividerGap(app.cfg, a, b, app.cfg.barSpacing);
     if (!groupHasCells(app.cfg)) return base;
     const bool ca = hasGroupCell(app.cfg, a), cb = hasGroupCell(app.cfg, b);
     const double pads = (ca ? kGroupPad : 0) + (cb ? kGroupPad : 0);
@@ -350,6 +363,7 @@ double edgePad(const App& app, const std::string& m) {
 void layoutBar(Bar& bar) {
     const App& app = *bar.app;
     bar.slot.clear();
+    bar.dividers.clear();
     bar.groups.clear();
     const double W = bar.width;
     auto live = [&](const std::vector<std::string>& v) {
@@ -364,6 +378,10 @@ void layoutBar(Bar& bar) {
         const double x0 = x;
         int vizHere = 0;
         for (size_t i = 0; i < mods.size(); i++) {
+            if (isDivider(mods[i])) {
+                const auto style = dividerOptions(app.cfg, mods[i]).style;
+                bar.dividers.emplace_back(x + bardivider::extent(style) / 2.0, style);
+            }
             if (mods[i] == "visualizer") bar.vizMirror.push_back(vizHere++ % 2 == 1);
             bar.slot[repeatable(mods[i]) ? mods[i] + "#" + std::to_string(copies[mods[i]]++) : mods[i]] = x + cellInsetL(app, mods[i]);
             x += moduleWidth(app, mods[i]) + cellInsetL(app, mods[i]) + cellInsetR(app, mods[i]) + (i + 1 < mods.size() ? moduleGap(app, mods[i], mods[i + 1]) : 0);

@@ -1,5 +1,6 @@
 #include <cairo.h>
 #include "i18n.h"
+#include "bardivider.h"
 #include "oled.h"
 #include "bubble.h"
 #include "elastic.h"
@@ -411,7 +412,7 @@ std::vector<Page> makePages() {
         {Slider, "barSpacing", "Spacing", "The space between the widgets of the bar. 4 px by default.", {}, 0, 24, 1, "px"},
         {Slider, "groupSpacing", "Spacing", "The space between the cells of the bar. 2 px by default.", {}, 2, 6, 1, "px"},
         {Slider, "sideBarSpacing", "Spacing", "The space between the widgets of the bar. 4 px by default.", {}, 0, 24, 1, "px"},
-        {Widgets, "layoutEditor", "Widgets", "Drag a widget to move it between the left, center and right of the bar (top, middle and bottom in a vertical one). Right-click one to hide it, or drop it on Hidden."},
+        {Widgets, "layoutEditor", "Widgets", "Drag a widget to move it between the left, center and right of the bar (top, middle and bottom in a vertical one). Right-click one to hide it, or drop it on Hidden. Click a placed divider to edit it."},
         {Choice, "workspaceStyle", "Workspaces", "Icons, numbered squares, dots, a pill, ticks or numbered rings.", {{"icons", "Icons"}, {"default", "Squares"}, {"gnome", "Dots"}, {"pill", "Pill"}, {"bar", "Bars"}, {"ring", "Rings"}, {"m3", "M3"}}},
         {Choice, "workspaceStyle", "Workspaces", "Dots or M3: the group styles use these two.", {{"gnome", "Dots"}, {"m3", "M3"}}},
         {Choice, "workspaceNumbers", "Numbers style", "How the workspaces are numbered: 1 2 3, Roman numerals (I II III) or Chinese characters (一 二 三). Only the looks that show numbers.", {{"normal", "Normal"}, {"roman", "Roman"}, {"han", "Han chars"}}},
@@ -446,8 +447,9 @@ std::vector<Page> makePages() {
         {Slider, "resWarnCpu", "CPU warning", "It turns red at this load.", {}, 50, 100, 5, "%"},
         {Slider, "resWarnMem", "RAM warning", "It turns red at this use.", {}, 50, 100, 5, "%"},
         {Slider, "resWarnSwap", "Swap warning", "It turns red at this use.", {}, 50, 100, 5, "%"},
-        {Choice, "dividerStyle", "Style", "A soft line that fades out at both ends, or a dot. Drag Divider from the Hidden tray as many times as you want.", {{"line", "Line"}, {"dot", "Dot"}}},
-        {Slider, "dividerSpacing", "Spacing", "The space between a divider and the widgets next to it. 0 by default.", {}, 0, 24, 1, "px"},
+        {Choice, "dividerItem", "Divider", "Choose a divider in the layout you are editing.", {}},
+        {Choice, "dividerItemStyle", "Style", "Choose a line, a dot, or a blank space.", {{"line", "Line"}, {"dot", "Dot"}, {"space", "Space"}}},
+        {Slider, "dividerItemMargin", "Margin", "The space on each side of this divider.", {}, 0, bardivider::maxMargin, 1, "px"},
         {Toggle, "aiClaude", "Claude Code", "The tokens used in the current 5 hour window, as a percentage. It shows only while Claude Code has left data on this machine.", {}},
         {Toggle, "aiCodex", "Codex", "The usage limit Codex reports. It shows only while Codex has left data on this machine.", {}},
         {Slider, "aiTokenLimit", "Claude limit", "How many thousands of tokens count as 100 % of the window. Anthropic does not publish the number of your plan, so set the one you reach.", {}, 100, 5000, 100, "k"},
@@ -635,7 +637,7 @@ std::vector<Page> makePages() {
     for (auto& pg : p) {
         if (pg.name == "General") sections(pg, {{"language", "Language"}, {"preferredPlayer", "Apps"}, {"clock24", "Time"}, {"volumeMax", "Audio"}, {"batteryLow", "Battery"}});
         else if (pg.name == "Appearance") sections(pg, {{"colorMode", "Colors"}, {"fontFamily", "Font & Icons"}, {"theme", "Themes"}, {"presetSave", "Presets"}, {"templateKitty", "Templates"}});
-        else if (pg.name == "Bar") sections(pg, {{"barPosition", "Position & Style"}, {"layoutFor", "Widgets"}, {"workspaceStyle", "Workspaces"}, {"networkAlways", "Network"}, {"privacyAlways", "Privacy"}, {"quick:picker", "Quick actions"}, {"trayPinDefault", "Tray"}, {"batteryPercent", "Battery"}, {"resCpu", "Resources"}, {"dividerStyle", "Divider"}, {"aiClaude", "AI usage"}});
+        else if (pg.name == "Bar") sections(pg, {{"barPosition", "Position & Style"}, {"layoutFor", "Widgets"}, {"workspaceStyle", "Workspaces"}, {"networkAlways", "Network"}, {"privacyAlways", "Privacy"}, {"quick:picker", "Quick actions"}, {"trayPinDefault", "Tray"}, {"batteryPercent", "Battery"}, {"resCpu", "Resources"}, {"dividerItem", "Divider"}, {"aiClaude", "AI usage"}});
         else if (pg.name == "Hyprland") sections(pg, {{"mon:map", "Displays"}, {"hypr:general:layout", "Layout"}, {"hypr:input:kb_layout", "Keyboard"}, {"hypr:input:sensitivity", "Mouse"}, {"hypr:input:touchpad:natural_scroll", "Touchpad"}, {"idle:lock", "Idle"}, {"hypr:decoration:rounding", "Look"}, {"borderColor", "Borders"}, {"hypr:animations:enabled", "Animations"}, {"hypr:general:resize_on_border", "Windows"}, {"hypr:misc:focus_on_activate", "Misc"}});
         else if (pg.name == "Niri") sections(pg, {{"niri:gaps", "Layout"}, {"niri:radius", "Windows"}, {"niri:follow", "Behavior"}, {"niri:repeatDelay", "Input"}, {"niriReset", "Reset"}});
         else if (pg.name == "Desktop") sections(pg, {{"wallpaperTransition", "Wallpaper"}, {"centeredWallpaper", "Centered wallpaper"}, {"collage", "Multiple wallpapers"}, {"wcards", "Widgets"}, {"cookieSides", "Cookie clock"}, {"deskVizStyle", "Visualizer"}, {"customTextFont", "Text"}});
@@ -665,7 +667,8 @@ const ModInfo kMods[] = {{"workspaces", "Workspaces", "widget-4"}, {"media", "Pl
                          {"weather", "Weather", "cloud-sun"}, {"aiusage", "AI usage", "magic-stick-3"}, {"keyboard", "Keyboard layout", "keyboard"}, {"activewindow", "Active window", "window-frame"}, {"divider", "Divider", "menu-dots"},
                          {"visualizer", "Visualizer", "soundwave"}, {"docktopanel", "Dock to panel", "layers-minimalistic"}};
 const ModInfo* modInfo(const std::string& id) {
-    for (const auto& m : kMods) if (id == m.id) return &m;
+    const std::string_view widget = bardivider::isDivider(id) ? "divider" : std::string_view(id);
+    for (const auto& m : kMods) if (widget == m.id) return &m;
     return nullptr;
 }
 struct EdChip { Rect r; std::string id; int lane = 0, idx = 0; bool gap = false; };
@@ -736,6 +739,7 @@ struct App {
     std::vector<Hit> hits;
     int dragHit = -1;
     std::vector<std::string> lay[3];
+    std::vector<std::pair<int, size_t>> dividerLocations;
     std::string otherLayout;
     EdDrag drag;
     EdGeom edGeom;
@@ -811,6 +815,44 @@ bool loadWidgetStates() {
     return changed;
 }
 
+const char* layoutLaneKey(int lane) {
+    static constexpr const char* horizontal[] = {"left", "center", "right"};
+    static constexpr const char* vertical[] = {"sideLeft", "sideCenter", "sideRight"};
+    return (g.val["layoutFor"] == "v" ? vertical : horizontal)[lane];
+}
+
+bardivider::Options readDividerOptions(const std::string& entry) {
+    return bardivider::parse(entry).value_or(bardivider::Options{
+        bardivider::parseStyle(g.val["dividerStyle"]).value_or(bardivider::Style::Line),
+        std::clamp(std::atoi(g.val["dividerSpacing"].c_str()), 0, bardivider::maxMargin)});
+}
+
+void refreshDividerChoices() {
+    static constexpr const char* horizontal[] = {"Left", "Center", "Right"};
+    static constexpr const char* vertical[] = {"Top", "Middle", "Bottom"};
+    const auto names = g.val["layoutFor"] == "v" ? vertical : horizontal;
+    g.dividerLocations.clear();
+    Opts choices;
+    for (int lane = 0; lane < 3; lane++) {
+        int number = 0;
+        for (size_t index = 0; index < g.lay[lane].size(); index++) {
+            if (!bardivider::isDivider(g.lay[lane][index])) continue;
+            choices.emplace_back(std::to_string(choices.size()), std::string(i18n::tr(names[lane])) + " " + std::to_string(++number));
+            g.dividerLocations.emplace_back(lane, index);
+        }
+    }
+    for (auto& page : g.pages)
+        for (auto& row : page.rows)
+            if (row.key == "dividerItem") row.opts = choices;
+    if (choices.empty()) return;
+    const size_t selected = std::min<size_t>(std::max(0, std::atoi(g.val["dividerItem"].c_str())), choices.size() - 1);
+    g.val["dividerItem"] = choices[selected].first;
+    const auto [lane, index] = g.dividerLocations[selected];
+    const auto options = readDividerOptions(g.lay[lane][index]);
+    g.val["dividerItemStyle"] = bardivider::styleName(options.style);
+    g.val["dividerItemMargin"] = std::to_string(options.margin);
+}
+
 void loadConfig() {
     const std::string t = readFile(configPath());
     for (const auto& d : std::vector<std::pair<const char*, const char*>>{{"dividerStyle", "line"}, {"overviewLive", "1"}, {"switcherStyle", "grid"}, {"overviewLauncher", "0"}, {"overviewIcon", "right"}, {"overviewPosition", "top"}, {"privacyMic", "1"}, {"privacyCam", "1"}, {"privacyScreen", "1"}, {"weatherTheme", "0"}, {"materialIcons", "0"}, {"iconScale", "100"}, {"fontWeightText", "450"}, {"fontWeightTitle", "550"}, {"launcherFiles", "0"}, {"batteryPercent", "1"}, {"templateKitty", "0"}, {"templateGtk", "0"}, {"templateKde", "0"}, {"aiClaude", "1"}, {"aiCodex", "1"}, {"aiTokenLimit", "1000"}, {"weatherInterval", "10"}, {"resCpu", "1"}, {"resRam", "1"}, {"resTemp", "0"}, {"resDisk", "0"}, {"resSwap", "0"}, {"resValue", "0"}, {"resInterval", "3000"}, {"resWarnCpu", "90"}, {"resWarnMem", "95"}, {"resWarnSwap", "85"}, {"resStyle", "filled"}, {"trayPinDefault", "0"}, {"trayTint", "0"}, {"notificationPosition", "top_right"}, {"notificationAppIcons", "0"}, {"conflictCheck", "1"}, {"clock24", "1"}, {"clockDate", "1"}, {"workspaceApps", "0"}, {"volumeMax", "100"}, {"volumeStep", "2"}, {"batteryLow", "20"}, {"batteryCritical", "5"}, {"batteryNotify", "1"}, {"widgetsLocked", "0"}, {"widgetShadow", "1"}, {"widgetGap", "12"}, {"calendarMonday", "1"}})
@@ -842,6 +884,8 @@ void loadConfig() {
     g.val.insert({"groupSpacing", "2"});
     g.val.insert({"groupColor", "surface_container_high"});
     g.val.insert({"dividerSpacing", "0"});
+    jsonValue(t, "dividerStyle", g.val["dividerStyle"]);
+    jsonValue(t, "dividerSpacing", g.val["dividerSpacing"]);
     g.val.insert({"workspaceNumbers", "normal"});
     g.val.insert({"sideBarSpacing", "4"});
     g.val.insert({"animEnabled", "1"});
@@ -981,6 +1025,7 @@ void loadConfig() {
         const size_t b = t.find(key), e = b == std::string::npos ? b : t.find('}', b);
         g.otherLayout = e == std::string::npos ? "" : t.substr(b, e - b);
     }
+    refreshDividerChoices();
     loadWidgetStates();
     if (g.focusRow < 0) g.configStamp = mtimeOf(configPath());
     const std::string st = g.val.count("iconStyle") ? g.val["iconStyle"] : "broken";
@@ -1508,7 +1553,31 @@ void sendSet(const std::string& key, const std::string& value) {
     if (key.compare(0, 4, "sys:") == 0) { sysSend(key, value); g.dirty = true; return; }
     if (key.compare(0, 5, "idle:") == 0) { idleSend(key, value); g.dirty = true; return; }
     if (key.compare(0, 4, "mon:") == 0) { monitorSend(key, value); g.dirty = true; return; }
-    if (key == "layoutFor") { g.val[key] = value; loadConfig(); g.dirty = true; return; }
+    if (key == "layoutFor") { g.val[key] = value; g.val.erase("dividerItem"); loadConfig(); g.dirty = true; return; }
+    if (key == "dividerItem") {
+        g.val[key] = value;
+        refreshDividerChoices();
+        g.dirty = true;
+        return;
+    }
+    if (key == "dividerItemStyle" || key == "dividerItemMargin") {
+        const size_t selected = std::atoi(g.val["dividerItem"].c_str());
+        if (selected >= g.dividerLocations.size()) return;
+        const auto [lane, index] = g.dividerLocations[selected];
+        const auto& entries = g.lay[lane];
+        if (index >= entries.size() || !bardivider::isDivider(entries[index])) return;
+        auto options = readDividerOptions(entries[index]);
+        if (key == "dividerItemStyle") options.style = bardivider::parseStyle(value).value_or(options.style);
+        else options.margin = std::clamp(std::atoi(value.c_str()), 0, bardivider::maxMargin);
+        auto changed = entries;
+        changed[index] = bardivider::encode(options);
+        std::string list;
+        for (const auto& entry : changed) list += (list.empty() ? "" : ",") + entry;
+        if (ipc(std::string("set ") + layoutLaneKey(lane) + " " + list) == "ok\n") g.lay[lane] = std::move(changed);
+        refreshDividerChoices();
+        g.dirty = true;
+        return;
+    }
     if (isHyprKey(key)) { hyprSend(key, value); g.dirty = true; return; }
     if (isNiriKey(key)) { niriSend(key, value); g.dirty = true; return; }
     g.val[key] = value;
@@ -2533,7 +2602,7 @@ bool rowAvailable(const Row& r) {
     }
     for (const char* k : {"resCpu", "resRam", "resTemp", "resDisk", "resSwap", "resValue", "resInterval", "resWarnCpu", "resWarnMem", "resWarnSwap"})
         if (r.key == k) return moduleUsed("resources");
-    if (r.key == "dividerStyle" || r.key == "dividerSpacing") return moduleUsed("divider");
+    if (r.key == "dividerItem" || r.key == "dividerItemStyle" || r.key == "dividerItemMargin") return !g.dividerLocations.empty();
     if (r.key == "aiClaude" || r.key == "aiCodex" || r.key == "aiTokenLimit") return moduleUsed("aiusage");
     return true;
 }
@@ -2581,7 +2650,7 @@ double pageTop(int pi) {
 double cardW() { return g.width - kMargin - kSideW - kGap - kMargin; }
 double cardH() { return g.height - 2 * kMargin; }
 
-bool repeatableMod(const std::string& id) { return id == "divider" || id == "visualizer"; }
+bool repeatableMod(const std::string& id) { return bardivider::isDivider(id) || id == "visualizer"; }
 bool edCenterLocked() { return g.val["layoutFor"] != "v" && g.val["dynamicIsland"] == "1" && (g.val["barStyle"] == "island" || g.val["barStyle"] == "split"); }
 void edLists(std::vector<std::string> out[4]) {
     for (int k = 0; k < 3; k++) out[k] = g.lay[k];
@@ -4638,6 +4707,21 @@ void finishDrag() {
     const EdDrag d = g.drag;
     g.drag = EdDrag{};
     g.dirty = true;
+    if (!d.moved && d.from < 3 && bardivider::isDivider(d.id)) {
+        refreshDividerChoices();
+        const auto selected = std::find(g.dividerLocations.begin(), g.dividerLocations.end(), std::pair{d.from, static_cast<size_t>(d.fromIdx)});
+        if (selected != g.dividerLocations.end()) {
+            g.val["dividerItem"] = std::to_string(selected - g.dividerLocations.begin());
+            refreshDividerChoices();
+            const auto sections = sectionNames(g.pages[g.page]);
+            const auto divider = std::find(sections.begin(), sections.end(), "Divider");
+            if (divider != sections.end()) {
+                g.secSel[g.page] = static_cast<int>(divider - sections.begin());
+                g.scroll = 0;
+                g.hoverHit = -1;
+            }
+        }
+    }
     if (!d.moved || d.hoverLane < 0) return;
     std::vector<std::string> lists[3] = {g.lay[0], g.lay[1], g.lay[2]};
     if (!repeatableMod(d.id)) for (auto& l : lists) l.erase(std::remove(l.begin(), l.end(), d.id), l.end());
@@ -4653,6 +4737,8 @@ void finishDrag() {
         g.lay[k] = lists[k];
         sendSet(names[k], v);
     }
+    g.val.erase("dividerItem");
+    refreshDividerChoices();
     updateCursor();
 }
 
@@ -4665,6 +4751,8 @@ void clearLayout() {
         g.lay[k].clear();
         sendSet(names[k], "");
     }
+    g.val.erase("dividerItem");
+    refreshDividerChoices();
     g.hoverHit = -1;
     g.dirty = true;
 }
@@ -4680,6 +4768,8 @@ void hideWidget() {
     std::string v;
     for (const auto& m : g.lay[lane]) v += (v.empty() ? "" : ",") + m;
     sendSet(names[lane], v);
+    g.val.erase("dividerItem");
+    refreshDividerChoices();
     g.hoverHit = -1;
     g.dirty = true;
 }

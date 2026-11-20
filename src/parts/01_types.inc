@@ -105,6 +105,7 @@ struct Bar {
     std::string roundApplied;
     Strip corners[4];
     std::map<std::string, double> slot;
+    std::vector<std::pair<double, bardivider::Style>> dividers;
     std::vector<GroupSpan> groups;  // the cells behind the widgets (cfg.groupStyle)
     std::vector<bool> vizMirror;
     std::shared_ptr<WpJob> wpJob;
@@ -2071,7 +2072,7 @@ inline bool groupFreeWidget(const Config& c, const std::string& mod) {
     return mod == "island" || listHas(c.groupFree, mod) || (!groupForcedLook(mod) && mod != "resources" && mod != "visualizer" && rawWidgetStyle(c, mod) == "m3");
 }
 inline bool hasGroupCell(const Config& c, const std::string& mod) {
-    return groupHasCells(c) && mod != "divider" && !groupFreeWidget(c, mod);
+    return groupHasCells(c) && !bardivider::isDivider(mod) && !groupFreeWidget(c, mod);
 }
 std::string widgetStyle(const Config& cfg, const std::string& mod) {
     const std::string s = rawWidgetStyle(cfg, mod);

@@ -259,14 +259,14 @@ Config sanitized(Config c) {
     for (auto* region : {&c.layoutLeft, &c.layoutCenter, &c.layoutRight}) {
         std::vector<std::string> clean;
         for (const auto& m : *region)
-            if (std::find(kModules.begin(), kModules.end(), m) != kModules.end() && (repeatable(m) || seen.insert(m).second)) clean.push_back(m);
+            if ((isDivider(m) || std::find(kModules.begin(), kModules.end(), m) != kModules.end()) && (repeatable(m) || seen.insert(m).second)) clean.push_back(m);
         *region = std::move(clean);
     }
     std::set<std::string> seenSide;
     for (auto* region : {&c.sideLeft, &c.sideCenter, &c.sideRight}) {
         std::vector<std::string> clean;
         for (const auto& m : *region)
-            if (std::find(kModules.begin(), kModules.end(), m) != kModules.end() && (repeatable(m) || seenSide.insert(m).second)) clean.push_back(m);
+            if ((isDivider(m) || std::find(kModules.begin(), kModules.end(), m) != kModules.end()) && (repeatable(m) || seenSide.insert(m).second)) clean.push_back(m);
         *region = std::move(clean);
     }
     if (!validIconStyle(c.iconStyle)) c.iconStyle = "broken";
@@ -362,7 +362,7 @@ Config sanitized(Config c) {
     if (c.clockDaily != "badge" && c.clockDaily != "morning" && c.clockDaily != "script" && c.clockDaily != "bold") c.clockDaily = "badge";
     if (c.clockPixel != "horizontal" && c.clockPixel != "vertical") c.clockPixel = "horizontal";
     if (!validWidgetStyle("resources", c.resStyle)) c.resStyle = "filled";
-    if (c.dividerStyle != "line" && c.dividerStyle != "dot") c.dividerStyle = "line";
+    if (c.dividerStyle != "line" && c.dividerStyle != "dot" && c.dividerStyle != "space") c.dividerStyle = "line";
     c.aiClaude = c.aiClaude ? 1 : 0;
     c.aiCodex = c.aiCodex ? 1 : 0;
     c.aiTokenLimit = std::clamp(c.aiTokenLimit, 50, 20000);
@@ -1113,7 +1113,7 @@ std::string setConfig(App& app, const std::string& key, const std::string& value
         if (value != "left" && value != "center" && value != "right") return "value must be left, center or right";
         next.overviewIcon = value;
     } else if (key == "dividerStyle") {
-        if (value != "line" && value != "dot") return "value must be line or dot";
+        if (value != "line" && value != "dot" && value != "space") return "value must be line, dot or space";
         next.dividerStyle = value;
     } else if (key == "resStyle") {
         if (!validWidgetStyle("resources", value)) return "value must be filled, outline, text, bars, pill or m3";
@@ -1123,12 +1123,12 @@ std::string setConfig(App& app, const std::string& key, const std::string& value
     } else if (key == "sideLeft" || key == "sideCenter" || key == "sideRight") {
         std::vector<std::string> list = value == "-" ? std::vector<std::string>{} : splitList(value);
         for (const auto& m : list)
-            if (std::find(kModules.begin(), kModules.end(), m) == kModules.end()) return "unknown module: " + m;
+            if (!isDivider(m) && std::find(kModules.begin(), kModules.end(), m) == kModules.end()) return "unknown module: " + m;
         (key == "sideLeft" ? next.sideLeft : key == "sideCenter" ? next.sideCenter : next.sideRight) = list;
     } else if (key == "left" || key == "center" || key == "right") {
         std::vector<std::string> list = value == "-" ? std::vector<std::string>{} : splitList(value);
         for (const auto& m : list)
-            if (std::find(kModules.begin(), kModules.end(), m) == kModules.end()) return "unknown module: " + m;
+            if (!isDivider(m) && std::find(kModules.begin(), kModules.end(), m) == kModules.end()) return "unknown module: " + m;
         (key == "left" ? next.layoutLeft : key == "center" ? next.layoutCenter : next.layoutRight) = list;
     } else if (key == "colorScheme") {
         if (std::find(kSchemes.begin(), kSchemes.end(), value) == kSchemes.end()) return "unknown scheme";

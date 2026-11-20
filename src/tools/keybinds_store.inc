@@ -26,7 +26,8 @@ const std::vector<KbKind>& kbKinds() {
     static const std::vector<KbKind> k = {
         {"exec", "Run a command", "code", "Command", true, true, {}},
         {"shell", "Shell action", "settings", "Action", true, true,
-         {{"settings", "Settings"}, {"tools", "Tools"}, {"launcher toggle", "Launcher"}, {"selector toggle", "Wallpaper"}, {"media toggle", "Media"},
+         {{"settings", "Settings"}, {"tools", "Tools"}, {"launcher toggle", "Launcher"}, {"overview", "Overview"},
+          {"selector toggle", "Wallpaper"}, {"media toggle", "Media"},
           {"power toggle", "Power menu"}, {"game toggle", "Game overlay"}, {"osk toggle", "Keyboard"}, {"screenshot region", "Screenshot"},
           {"screenshot lens", "Lens"}, {"quick 1", "Record"}, {"brightness up", "Brightness +"}, {"brightness down", "Brightness -"}}},
         {"close", "Close window", "close-circle", nullptr, false, true, {}},

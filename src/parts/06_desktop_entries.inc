@@ -326,7 +326,7 @@ void drawBatteryM3(cairo_t* cr, const App& app, double x, double barH, int pct, 
     g_object_unref(layout);
 }
 
-struct SideItem { int id; Rect r; };
+struct SideItem { int id; Rect r; bardivider::Style dividerStyle = bardivider::Style::Line; };
 const char* kSideWsIcons[] = {"code", "global", "music-note", "pen", "gallery", "chat-round-dots", "graph-up", "gamepad", "folder-with-files", "notebook"};
 struct SideWsShape { double h, vw, gap; };
 
@@ -403,12 +403,12 @@ double sideModuleH(const App& app, const std::string& m) {
     if (m == "keyboard") return app.kbd.list.empty() ? 0 : 40;
     if (m == "activewindow") return 40;
     if (m == "visualizer") return kVizBars * (kVizDot + kVizGap) + (widgetStyle(app, "visualizer") == "m3" ? 2 * kVizM3Pad : 0);
-    if (isDivider(m)) return app.cfg.dividerStyle == "dot" ? 6 : 2;
+    if (isDivider(m)) return bardivider::extent(dividerOptions(app.cfg, m).style);
     if (m == "battery") return app.statusT[3] > 0.001 ? sideBatteryH(app) * (1 - std::pow(1 - app.statusT[3], 3)) : 0;
     return 0;
 }
 double sideModuleGap(const App& app, const std::string& a, const std::string& b) {
-    return isDivider(a) || isDivider(b) ? app.cfg.dividerSpacing : app.cfg.sideBarSpacing;
+    return dividerGap(app.cfg, a, b, app.cfg.sideBarSpacing);
 }
 std::vector<SideItem> sideLayout(const Bar& bar, std::vector<std::pair<double, double>>* spans = nullptr) {
     const App& app = *bar.app;
@@ -490,7 +490,7 @@ std::vector<SideItem> sideLayout(const Bar& bar, std::vector<std::pair<double, d
             else if (m == "activewindow") v.push_back({HitActiveWindow, {x, y, 40, 40}});
             else if (m == "aiusage") { const auto s = aiShown(app); for (size_t k = 0; k < s.size(); k++) v.push_back({kHitAi + s[k], {x, y + k * 44.0, 40, 40}}); }
             else if (m == "visualizer") v.push_back({kHitViz + (vizSeen++ % 2), {x, y, 40, sideModuleH(app, m)}});
-            else if (isDivider(m)) v.push_back({HitDivider, {x, y, 40, sideModuleH(app, m)}});
+            else if (isDivider(m)) v.push_back({HitDivider, {x, y, 40, sideModuleH(app, m)}, dividerOptions(app.cfg, m).style});
             else if (m == "battery") v.push_back({kHitStatus + 3, {x, y, 40, sideBatteryH(app)}});
             else if (m == "systray") {
                 std::vector<int> pin, oth;
@@ -1336,9 +1336,10 @@ double aiBarPaint(cairo_t* cr, const App& app, PangoLayout* layout, double x, do
     pango_font_description_free(f);
     return w + outer;
 }
-void dividerPaint(cairo_t* cr, const App& app, double cx, double cy, bool tall) {
+void dividerPaint(cairo_t* cr, const App& app, double cx, double cy, bool tall, bardivider::Style style) {
+    if (style == bardivider::Style::Space) return;
     const Color c = app.color("on_surface_variant");
-    if (app.cfg.dividerStyle == "dot") {
+    if (style == bardivider::Style::Dot) {
         cairo_new_sub_path(cr);
         cairo_arc(cr, cx, cy, 2.5, 0, 2 * M_PI);
         setSource(cr, c, 0.8);
@@ -1775,7 +1776,7 @@ void drawSide(Bar& bar) {
             aiSidePaint(cr, app, layout, r, it.id - kHitAi, hot);
             continue;
         }
-        if (it.id == HitDivider) { dividerPaint(cr, app, r.x + r.w / 2, r.y + r.h / 2, false); continue; }
+        if (it.id == HitDivider) { dividerPaint(cr, app, r.x + r.w / 2, r.y + r.h / 2, false, it.dividerStyle); continue; }
         if (it.id >= kHitViz && it.id < kHitViz + 2) { vizPaint(cr, app, r.x + r.w / 2, r.y + r.h / 2, true, it.id == kHitViz + 1); continue; }
         if (it.id == HitClock && widgetStyle(app, "clock") == "m3") {
             const size_t colon = app.clockTime.find(':');
@@ -3061,11 +3062,8 @@ void draw(Bar& bar) {
     if (hasSlot(bar, "activewindow")) { awinPaint(cr, app, layout, slotX(bar, "activewindow"), (bar.height - kQuickBox) / 2.0, awinBarW(app), kQuickBox, false); pango_layout_set_font_description(layout, font); }
     if (hasSlot(bar, "keyboard") && !app.kbd.list.empty()) { kbdPaint(cr, app, layout, slotX(bar, "keyboard"), (bar.height - kQuickBox) / 2.0, kbdBarW(app), kQuickBox, false, app.hoverBar == &bar && hitTest(bar, app.pointerX, app.pointerY) == HitKeyboard); pango_layout_set_font_description(layout, font); }
     if (hasSlot(bar, "aiusage")) { aiBarPaint(cr, app, layout, slotX(bar, "aiusage"), bar.height / 2.0, hotNow >= kHitAi && hotNow < kHitAi + 2 ? hotNow - kHitAi : -1); pango_layout_set_font_description(layout, font); }
-    for (int k = 0;; k++) {
-        const std::string dv = "divider#" + std::to_string(k);
-        if (!hasSlot(bar, dv.c_str())) break;
-        dividerPaint(cr, app, slotX(bar, dv.c_str()) + moduleWidth(app, "divider") / 2.0, bar.height / 2.0, true);
-    }
+    for (const auto& [x, style] : bar.dividers)
+        dividerPaint(cr, app, x, bar.height / 2.0, true, style);
     for (int k = 0;; k++) {
         const std::string vz = "visualizer#" + std::to_string(k);
         if (!hasSlot(bar, vz.c_str())) break;
